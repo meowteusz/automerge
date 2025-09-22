@@ -34,6 +34,7 @@ A graph-based tool that automatically discovers how to merge multiple CSV files 
 - ✅ **Validation**: Identifies isolated CSVs that can't be connected
 - 🎯 **Interactive**: Prompts for directory and output preferences
 - ⚡ **Auto-merge mode**: `--merge` flag for automated merging with default options
+- 🌍 **Robust encoding**: Automatically handles CSV files with different encodings (UTF-8, Latin-1, etc.)
 
 **How it works:**
 1. Scans a directory for CSV files
@@ -52,6 +53,7 @@ A diagnostic tool for troubleshooting merge issues, especially duplicate records
 - 📋 **Step-by-step analysis**: Simulates merges to pinpoint where duplicates occur
 - 🎯 **Value inspection**: Shows sample values with types and formatting
 - 💡 **Fix suggestions**: Provides concrete solutions for common issues
+- 🌍 **Robust encoding**: Automatically handles CSV files with different encodings (UTF-8, Latin-1, etc.)
 
 ## 📋 Usage Examples
 
@@ -157,6 +159,31 @@ def smart_merge(left_df, right_df, on_columns):
 
 This prevents the common issue of pandas adding `_x` and `_y` suffixes to duplicate columns.
 
+## 🌍 Encoding Support
+
+Both tools automatically handle CSV files with different text encodings, preventing common "codec can't decode byte" errors.
+
+**Supported encodings (tried in order):**
+- UTF-8 (default)
+- Latin-1 / ISO-8859-1 
+- CP1252 (Windows)
+- UTF-16
+
+**Example output for encoding issues:**
+```
+⚠️  problematic_file.csv: Loaded with latin-1 encoding
+```
+
+**Detailed error reporting:**
+```
+❌ Error loading ../data/survey.csv: UTF-8 decode error
+   Problematic byte: 0xca at position 113241
+   Approximate location: row 1542, column 23
+   Tried encodings: utf-8, latin-1, iso-8859-1, cp1252, utf-16
+```
+
+The tools will gracefully exit if a CSV file cannot be loaded with any supported encoding, rather than crashing with cryptic pandas errors.
+
 ## 🐛 Common Issues & Solutions
 
 ### Issue: Getting duplicate records after merge
@@ -193,6 +220,16 @@ df['join_column'] = df['join_column'].str.lower()
 **Cause**: The tool finds a valid path but not the optimal one for your use case
 
 **Solution**: The tool uses minimum spanning tree which should be optimal, but you can modify the `find_merge_path()` function for custom logic.
+
+### Issue: "UnicodeDecodeError: 'utf-8' codec can't decode byte"
+
+**Cause**: CSV file contains non-UTF-8 encoded text (common with exports from Excel, legacy systems)
+
+**Solution**: The tools automatically try multiple encodings, but if you see this error:
+1. The file will typically load successfully with Latin-1 encoding
+2. Look for the encoding warning: `⚠️ file.csv: Loaded with latin-1 encoding`
+3. If loading fails completely, the error message shows the problematic byte location
+4. You may need to manually convert the file encoding or fix the specific character
 
 ## 📊 Example Directory Structure
 
