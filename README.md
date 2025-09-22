@@ -7,8 +7,14 @@ A collection of Python tools for intelligently merging CSV files using graph-bas
 No setup required! Just run the tools directly with uv:
 
 ```bash
-# Main merge tool
+# Interactive merge tool
 uv run csv_merge_analyzer.py
+
+# Auto-merge with default options
+uv run csv_merge_analyzer.py --merge
+
+# Auto-merge from specific directory
+uv run csv_merge_analyzer.py --merge --dir /path/to/csvs
 
 # Debug duplicate issues
 uv run merge_debugger.py
@@ -27,6 +33,7 @@ A graph-based tool that automatically discovers how to merge multiple CSV files 
 - 🔧 **Smart merging**: Prevents column conflicts by only keeping unique columns
 - ✅ **Validation**: Identifies isolated CSVs that can't be connected
 - 🎯 **Interactive**: Prompts for directory and output preferences
+- ⚡ **Auto-merge mode**: `--merge` flag for automated merging with default options
 
 **How it works:**
 1. Scans a directory for CSV files
@@ -48,10 +55,10 @@ A diagnostic tool for troubleshooting merge issues, especially duplicate records
 
 ## 📋 Usage Examples
 
-### Basic Merge Workflow
+### Interactive Merge Workflow
 
 ```bash
-# 1. First, run the main analyzer
+# 1. Run the analyzer interactively
 uv run csv_merge_analyzer.py
 ```
 
@@ -74,6 +81,34 @@ uv run csv_merge_analyzer.py
    2. Merge merged_result + locations on: location_id
 
 🚀 Execute merge? (y/n): y
+```
+
+### Auto-Merge Mode
+
+For automation or when you want to merge with default options:
+
+```bash
+# Auto-merge CSVs in current directory
+uv run csv_merge_analyzer.py --merge
+
+# Auto-merge CSVs in specific directory  
+uv run csv_merge_analyzer.py --merge --dir /path/to/your/csvs
+```
+
+**Sample output:**
+```
+📊 ANALYSIS RESULTS
+📁 CSV files found: 3
+🔗 Connections found: 2
+✅ Can merge all CSVs: True
+
+📋 OPTIMAL MERGE PATH:
+   1. Merge sales_data + customer_info on: customer_id
+   2. Merge merged_result + locations on: location_id
+
+🚀 Auto-merge mode enabled - executing merge with default options...
+🔄 Merging CSVs into 'defaultmerged_data.csv'...
+🎉 SUCCESS! Merged data saved to 'defaultmerged_data.csv'
 ```
 
 ### Debugging Duplicates
@@ -187,6 +222,7 @@ Both tools use inline dependency management - no manual installation required!
 - You're not sure how they connect
 - You want to merge them automatically
 - You want to avoid manual VLOOKUP/JOIN operations
+- You need automated merging for scripts/pipelines (use `--merge` flag)
 
 **Use Merge Debugger when:**
 - Your merge created unexpected duplicate rows
