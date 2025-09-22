@@ -20,6 +20,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from collections import defaultdict
 from typing import List, Dict, Tuple, Set
+import argparse
 
 class CSVMergeAnalyzer:
     def __init__(self, csv_directory: str):
@@ -222,38 +223,69 @@ class CSVMergeAnalyzer:
 
 # Example usage
 if __name__ == "__main__":
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="CSV Merge Analyzer - Graph-based CSV merging tool")
+    parser.add_argument("--merge", action="store_true", 
+                       help="Automatically merge CSVs with default options (defaultmerged_data.csv)")
+    parser.add_argument("--dir", type=str, default=".", 
+                       help="Directory containing CSV files (default: current directory)")
+    
+    args = parser.parse_args()
+    
     print("🔍 CSV Merge Analyzer")
     print("=" * 50)
     
-    # Prompt for directory path
-    while True:
-        csv_dir = input("\n📁 Enter path to directory containing CSV files: ").strip()
-        
-        if not csv_dir:
-            print("❌ Please enter a valid path")
-            continue
+    # Determine directory
+    if args.merge:
+        csv_dir = args.dir
+    else:
+        # Prompt for directory path
+        while True:
+            csv_dir = input("\n📁 Enter path to directory containing CSV files: ").strip()
             
-        # Handle common path issues
-        if csv_dir.startswith('"') and csv_dir.endswith('"'):
-            csv_dir = csv_dir[1:-1]  # Remove quotes
-        
+            if not csv_dir:
+                print("❌ Please enter a valid path")
+                continue
+                
+            # Handle common path issues
+            if csv_dir.startswith('"') and csv_dir.endswith('"'):
+                csv_dir = csv_dir[1:-1]  # Remove quotes
+            
+            csv_path = Path(csv_dir)
+            if not csv_path.exists():
+                print(f"❌ Directory '{csv_dir}' not found")
+                continue
+            
+            if not csv_path.is_dir():
+                print(f"❌ '{csv_dir}' is not a directory")
+                continue
+                
+            # Check if directory contains CSV files
+            csv_files = list(csv_path.glob("*.csv"))
+            if not csv_files:
+                print(f"❌ No CSV files found in '{csv_dir}'")
+                continue
+                
+            print(f"✅ Found {len(csv_files)} CSV files")
+            break
+    
+    # Validate directory for --merge mode
+    if args.merge:
         csv_path = Path(csv_dir)
         if not csv_path.exists():
             print(f"❌ Directory '{csv_dir}' not found")
-            continue
+            exit(1)
         
         if not csv_path.is_dir():
             print(f"❌ '{csv_dir}' is not a directory")
-            continue
+            exit(1)
             
-        # Check if directory contains CSV files
         csv_files = list(csv_path.glob("*.csv"))
         if not csv_files:
             print(f"❌ No CSV files found in '{csv_dir}'")
-            continue
+            exit(1)
             
         print(f"✅ Found {len(csv_files)} CSV files")
-        break
     
     # Initialize analyzer
     analyzer = CSVMergeAnalyzer(csv_dir)
@@ -292,16 +324,11 @@ if __name__ == "__main__":
             on_cols = ', '.join(step['on_columns'])
             print(f"   {i+1}. Merge {step['merge'][0]} + {step['merge'][1]} on: {on_cols}")
         
-        # Ask if user wants to execute merge
-        print("\n" + "=" * 50)
-        execute = input("🚀 Execute merge? (y/n): ").strip().lower()
-        
-        if execute in ['y', 'yes']:
-            output_name = input("💾 Output filename (press Enter for 'merged_data.csv'): ").strip()
-            if not output_name:
-                output_name = "merged_data.csv"
-            elif not output_name.endswith('.csv'):
-                output_name += '.csv'
+        if args.merge:
+            # Auto-merge mode
+            print("\n" + "=" * 50)
+            print("🚀 Auto-merge mode enabled - executing merge with default options...")
+            output_name = "defaultmerged_data.csv"
             
             print(f"\n🔄 Merging CSVs into '{output_name}'...")
             merged_df = analyzer.execute_merge(output_name)
@@ -310,9 +337,29 @@ if __name__ == "__main__":
                 print(f"\n🎉 SUCCESS! Merged data saved to '{output_name}'")
                 print(f"📊 Final dataset: {merged_df.shape[0]} rows × {merged_df.shape[1]} columns")
         else:
-            print("👍 Analysis complete. Merge not executed.")
+            # Interactive mode
+            print("\n" + "=" * 50)
+            execute = input("🚀 Execute merge? (y/n): ").strip().lower()
+            
+            if execute in ['y', 'yes']:
+                output_name = input("💾 Output filename (press Enter for 'merged_data.csv'): ").strip()
+                if not output_name:
+                    output_name = "merged_data.csv"
+                elif not output_name.endswith('.csv'):
+                    output_name += '.csv'
+                
+                print(f"\n🔄 Merging CSVs into '{output_name}'...")
+                merged_df = analyzer.execute_merge(output_name)
+                
+                if merged_df is not None:
+                    print(f"\n🎉 SUCCESS! Merged data saved to '{output_name}'")
+                    print(f"📊 Final dataset: {merged_df.shape[0]} rows × {merged_df.shape[1]} columns")
+            else:
+                print("👍 Analysis complete. Merge not executed.")
     else:
         print("\n❌ Cannot merge all CSVs - some are not connected!")
         print("💡 Suggestion: Check if isolated CSVs share columns with others.")
+        if args.merge:
+            exit(1)
     
     print("\n✨ Done!")
