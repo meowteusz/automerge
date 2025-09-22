@@ -14,6 +14,54 @@ Usage: uv run merge_debugger.py
 import pandas as pd
 from pathlib import Path
 from collections import Counter
+import sys
+
+def load_csv_robust(file_path, **kwargs):
+    """
+    Robustly load a CSV file with automatic encoding detection and error handling.
+    
+    Args:
+        file_path: Path to the CSV file
+        **kwargs: Additional arguments to pass to pd.read_csv
+    
+    Returns:
+        pd.DataFrame or None if loading fails
+    """
+    encodings_to_try = ['utf-8', 'latin-1', 'iso-8859-1', 'cp1252', 'utf-16']
+    
+    for encoding in encodings_to_try:
+        try:
+            df = pd.read_csv(file_path, encoding=encoding, **kwargs)
+            if encoding != 'utf-8':
+                print(f"⚠️  {file_path.name}: Loaded with {encoding} encoding")
+            return df
+        except UnicodeDecodeError as e:
+            if encoding == encodings_to_try[-1]:
+                # Calculate approximate row/column from byte position
+                try:
+                    with open(file_path, 'rb') as f:
+                        content = f.read(e.start)
+                        lines = content.count(b'\n')
+                        last_line_start = content.rfind(b'\n')
+                        if last_line_start == -1:
+                            col_pos = e.start
+                        else:
+                            col_pos = e.start - last_line_start - 1
+                    
+                    print(f"❌ Error loading {file_path}: UTF-8 decode error")
+                    print(f"   Problematic byte: 0x{e.object[e.start]:02x} at position {e.start}")
+                    print(f"   Approximate location: row {lines + 1}, column {col_pos + 1}")
+                    print(f"   Tried encodings: {', '.join(encodings_to_try)}")
+                except Exception:
+                    print(f"❌ Error loading {file_path}: UTF-8 decode error at position {e.start}")
+                    print(f"   Tried encodings: {', '.join(encodings_to_try)}")
+            continue
+        except Exception as e:
+            print(f"❌ Error loading {file_path}: {str(e)}")
+            return None
+    
+    print(f"❌ Failed to load {file_path} with any encoding. Exiting.")
+    sys.exit(1)
 
 def debug_merge_duplicates(csv_directory: str):
     """Debug duplicate issues in CSV merges."""
@@ -27,9 +75,13 @@ def debug_merge_duplicates(csv_directory: str):
     # Load all CSVs
     csvs = {}
     for csv_file in csv_files:
-        df = pd.read_csv(csv_file)
-        csvs[csv_file.stem] = df
-        print(f"📁 {csv_file.stem}: {len(df)} rows")
+        df = load_csv_robust(csv_file)
+        if df is not None:
+            csvs[csv_file.stem] = df
+            print(f"📁 {csv_file.stem}: {len(df)} rows")
+        else:
+            print(f"❌ Skipping {csv_file.stem} due to loading errors")
+            sys.exit(1)
     
     print("\n" + "=" * 50)
     print("🔎 CHECKING FOR DUPLICATES IN JOIN COLUMNS")
@@ -126,8 +178,12 @@ def simulate_merge_step_by_step(csv_directory: str):
     
     # This is a simplified version - you'd need to adapt based on your actual merge logic
     if len(csv_files) >= 2:
-        df1 = pd.read_csv(csv_files[0])
-        df2 = pd.read_csv(csv_files[1])
+        df1 = load_csv_robust(csv_files[0])
+        df2 = load_csv_robust(csv_files[1])
+        
+        if df1 is None or df2 is None:
+            print("❌ Failed to load CSV files for merge simulation")
+            sys.exit(1)
         
         print(f"📊 Before merge:")
         print(f"  {csv_files[0].stem}: {len(df1)} rows")

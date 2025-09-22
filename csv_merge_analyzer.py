@@ -21,6 +21,54 @@ from pathlib import Path
 from collections import defaultdict
 from typing import List, Dict, Tuple, Set
 import argparse
+import sys
+
+def load_csv_robust(file_path, **kwargs):
+    """
+    Robustly load a CSV file with automatic encoding detection and error handling.
+    
+    Args:
+        file_path: Path to the CSV file
+        **kwargs: Additional arguments to pass to pd.read_csv
+    
+    Returns:
+        pd.DataFrame or None if loading fails
+    """
+    encodings_to_try = ['utf-8', 'latin-1', 'iso-8859-1', 'cp1252', 'utf-16']
+    
+    for encoding in encodings_to_try:
+        try:
+            df = pd.read_csv(file_path, encoding=encoding, **kwargs)
+            if encoding != 'utf-8':
+                print(f"⚠️  {file_path.name}: Loaded with {encoding} encoding")
+            return df
+        except UnicodeDecodeError as e:
+            if encoding == encodings_to_try[-1]:
+                # Calculate approximate row/column from byte position
+                try:
+                    with open(file_path, 'rb') as f:
+                        content = f.read(e.start)
+                        lines = content.count(b'\n')
+                        last_line_start = content.rfind(b'\n')
+                        if last_line_start == -1:
+                            col_pos = e.start
+                        else:
+                            col_pos = e.start - last_line_start - 1
+                    
+                    print(f"❌ Error loading {file_path}: UTF-8 decode error")
+                    print(f"   Problematic byte: 0x{e.object[e.start]:02x} at position {e.start}")
+                    print(f"   Approximate location: row {lines + 1}, column {col_pos + 1}")
+                    print(f"   Tried encodings: {', '.join(encodings_to_try)}")
+                except Exception:
+                    print(f"❌ Error loading {file_path}: UTF-8 decode error at position {e.start}")
+                    print(f"   Tried encodings: {', '.join(encodings_to_try)}")
+            continue
+        except Exception as e:
+            print(f"❌ Error loading {file_path}: {str(e)}")
+            return None
+    
+    print(f"❌ Failed to load {file_path} with any encoding. Exiting.")
+    sys.exit(1)
 
 class CSVMergeAnalyzer:
     def __init__(self, csv_directory: str):
@@ -34,17 +82,18 @@ class CSVMergeAnalyzer:
         csv_files = list(self.csv_directory.glob("*.csv"))
         
         for csv_file in csv_files:
-            try:
-                # Just read the header to get column names
-                df = pd.read_csv(csv_file, nrows=0)
+            # Just read the header to get column names
+            df = load_csv_robust(csv_file, nrows=0)
+            if df is not None:
                 self.csvs[csv_file.stem] = {
                     'path': csv_file,
                     'columns': set(df.columns),
                     'column_list': list(df.columns)
                 }
                 print(f"Loaded {csv_file.stem}: {len(df.columns)} columns")
-            except Exception as e:
-                print(f"Error loading {csv_file}: {e}")
+            else:
+                print(f"❌ Skipping {csv_file.stem} due to loading errors")
+                sys.exit(1)
     
     def build_connection_graph(self) -> None:
         """Build a graph where nodes are CSVs and edges are shared columns."""
@@ -180,8 +229,12 @@ class CSVMergeAnalyzer:
         csv1_name, csv2_name = first_merge['merge']
         on_cols = first_merge['on_columns']
         
-        df1 = pd.read_csv(self.csvs[csv1_name]['path'])
-        df2 = pd.read_csv(self.csvs[csv2_name]['path'])
+        df1 = load_csv_robust(self.csvs[csv1_name]['path'])
+        df2 = load_csv_robust(self.csvs[csv2_name]['path'])
+        
+        if df1 is None or df2 is None:
+            print("❌ Failed to load CSV files for merging")
+            sys.exit(1)
         
         # Smart merge function to avoid column conflicts
         def smart_merge(left_df, right_df, on_columns):
@@ -208,7 +261,10 @@ class CSVMergeAnalyzer:
             else:
                 next_csv = csv1_name
             
-            next_df = pd.read_csv(self.csvs[next_csv]['path'])
+            next_df = load_csv_robust(self.csvs[next_csv]['path'])
+            if next_df is None:
+                print(f"❌ Failed to load {next_csv}")
+                sys.exit(1)
             result = smart_merge(result, next_df, on_cols)
             merged_csvs.add(next_csv)
             
